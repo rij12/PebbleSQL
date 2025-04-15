@@ -2,6 +2,7 @@ package blinktree
 
 import (
 	"fmt"
+	"log"
 	"sort"
 	"sync"
 )
@@ -62,10 +63,7 @@ func (tree *BlinkTree) Search(key int) ([]byte, bool) {
 }
 
 func (tree *BlinkTree) Insert(key int, value []byte) {
-	tree.mu.Lock() // <-- GLOBAL LOCK
-	defer tree.mu.Unlock()
-	n := tree.root
-	tree.insert(n, key, value) // <-- Per-node locking inside here
+	tree.insert(tree.root, key, value)
 }
 
 func (tree *BlinkTree) insert(n *Node, key int, value []byte) {
@@ -93,8 +91,11 @@ func (tree *BlinkTree) insert(n *Node, key int, value []byte) {
 }
 
 func (tree *BlinkTree) split(n *Node) {
-	n.mu.Lock()
-	defer n.mu.Unlock()
+
+	// TODO - Need to give this more thought
+	if !n.mu.TryLock() {
+		log.Fatal("BlinkTree split called on node that is not locked")
+	}
 
 	mid := len(n.keys) / 2
 	right := &Node{
@@ -103,6 +104,8 @@ func (tree *BlinkTree) split(n *Node) {
 		rightSibling: n.rightSibling,
 		parent:       n.parent,
 	}
+	right.mu.Lock()
+	defer right.mu.Unlock()
 
 	if n.isLeaf {
 		right.values = append([][]byte(nil), n.values[mid:]...)
