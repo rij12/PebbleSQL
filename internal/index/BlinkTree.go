@@ -1,6 +1,8 @@
 package blinktree
 
 import (
+	"bytes"
+	"encoding/binary"
 	"fmt"
 	"log"
 	"sort"
@@ -12,9 +14,9 @@ const maxKeys = 4 // For simplicity, a small branching factor
 type Node struct {
 	isLeaf       bool
 	keys         []int
-	values       [][]byte // Only for leaf nodes
-	children     []*Node  // Only for internal nodes
-	parent       *Node    // For backtracking
+	values       [][]byte         // Only for leaf nodes
+	children     []*BLinkTreePage // Only for internal nodes
+	parent       *BLinkTreePage   // For backtracking
 	rightSibling *Node
 	mu           sync.RWMutex
 }
@@ -32,6 +34,7 @@ func NewBlinkTree() *BlinkTree {
 
 func (tree *BlinkTree) Search(key int) ([]byte, bool) {
 	n := tree.root
+	// Find the leaf node with the values
 	for {
 		n.mu.RLock()
 		if n.isLeaf {
@@ -54,6 +57,7 @@ func (tree *BlinkTree) Search(key int) ([]byte, bool) {
 	}
 	n.mu.RUnlock()
 
+	// Search leaf node
 	for i, k := range n.keys {
 		if k == key {
 			return n.values[i], true
@@ -192,4 +196,56 @@ func (tree *BlinkTree) Print() {
 		}
 		fmt.Println()
 	}
+}
+
+func (node *Node) Serialise() ([]byte, error) {
+
+	buf := new(bytes.Buffer)
+
+	// Is leaf node?
+	if node.isLeaf {
+		buf.WriteByte(1)
+	} else {
+		buf.WriteByte(0)
+	}
+
+	// Node
+	err := binary.Write(buf, binary.LittleEndian, len(node.keys))
+	if err != nil {
+		return nil, err
+	}
+
+	err = binary.Write(buf, binary.LittleEndian, node.keys)
+	if err != nil {
+		return nil, err
+	}
+
+	// Children if non-leaf node
+	// Otherwise write the node's value store in the leaf
+	if !node.isLeaf {
+		err = binary.Write(buf, binary.LittleEndian, len(node.values))
+		if err != nil {
+			return nil, err
+		}
+		err = binary.Write(buf, binary.LittleEndian, node.values)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		err = binary.Write(buf, binary.LittleEndian, len(node.values))
+		if err != nil {
+			return nil, err
+		}
+		err = binary.Write(buf, binary.LittleEndian, node.values)
+	}
+
+	err = binary.Write(buf, binary.LittleEndian, node.parent)
+	if err != nil {
+		return nil, err
+	}
+	err = binary.Write(buf, binary.LittleEndian, node.rightSibling)
+	if err != nil {
+		return nil, err
+	}
+
 }
