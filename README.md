@@ -23,3 +23,6 @@ SQL Database written in Golang
 
 * Currently can only support one index, as value as in lined in the slotted pages instead of using RowID's 
 * Pages need to be de-fragmented
+
+## Learning & References
+* Database Internals by Alex Petrov 
