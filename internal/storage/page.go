@@ -34,6 +34,7 @@ type SlotEntry struct {
 	ValueLength    uint16
 	OverflowPageID uint32
 	ChildPageID    uint32
+	Deleted        bool
 }
 
 type OverflowPageHeader struct {
@@ -213,15 +214,7 @@ func (p *BLinkTreePage) InsertKeyValue(
 		slot.OverflowPageID = firstOverFlowPageID
 	}
 
-	// This is sorting the slot into the slot array.
-	// This is important because we need to be able to perform
-	// binary search on it for BLink-Tree.
-	/*
-		How search works -
-		When we search a page, we perform a binary search on the slot array,
-		which holds keys that have pointers to values in the data area.
-
-	*/
+	// slot array needs to be sorted, after every insert, so we can use binary search later.
 	insertPos := findInsertPosition(p.Buf, header.NumKeys, key)
 	if insertPos < int(header.NumKeys) {
 		shiftSlots(p.Buf, insertPos, header.NumKeys)
@@ -282,7 +275,6 @@ func (p *BLinkTreePage) FindKey(
 
 					overflowPageID = overflowHeader.NextOverflowPageID
 				}
-
 				return result, nil
 			}
 		} else if key < slot.Key {
@@ -316,3 +308,30 @@ func shiftSlots(buf []byte, insertPos int, numKeys uint16) {
 
 	copy(buf[dstOffset:dstOffset+moveSize], buf[srcOffset:srcOffset+moveSize])
 }
+
+func (p *BLinkTreePage) DeleteKey(key uint64) error {
+	header := ReadHeader(p.Buf[:20])
+
+	low := 0
+	high := int(header.NumKeys) - 1
+	slotSize := int(unsafe.Sizeof(SlotEntry{}))
+
+	for low <= high {
+		mid := (low + high) / 2
+		slotOffset := int(unsafe.Sizeof(PageHeader{})) + mid*slotSize
+		slot := ReadSlot(p.Buf[slotOffset : slotOffset+slotSize])
+
+		if slot.Key == key {
+			slot.Deleted = true
+			WriteSlot(p.Buf[slotOffset:slotOffset+slotSize], &slot)
+			return nil
+		} else if key < slot.Key {
+			high = mid - 1
+		} else {
+			low = mid + 1
+		}
+	}
+	return ErrorKeyNotFound
+}
+
+// TODO - Also need a way to de-frag pages at a later point in time.

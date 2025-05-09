@@ -39,12 +39,16 @@ func NewDiskManager(filename string) (*PebbleSQLDiskManager, error) {
 	}, nil
 }
 
-func (d *PebbleSQLDiskManager) AllocatePage() uint32 {
+func (d *PebbleSQLDiskManager) AllocatePageID() uint32 {
 	return atomic.AddUint32(&d.nextPageID, 1) - 1
 }
 
+func (d *PebbleSQLDiskManager) AllocatePage() uint32 {
+	return d.AllocatePageID()
+}
+
 func (d *PebbleSQLDiskManager) AllocateOverflowPage() (*OverflowPage, uint32) {
-	pageID := d.AllocatePage()
+	pageID := d.AllocatePageID()
 	buf := make([]byte, PageSize)
 	return &OverflowPage{Buf: buf}, pageID
 }
