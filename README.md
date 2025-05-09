@@ -2,6 +2,9 @@
 SQL Database written in Golang
 
 ## Core Objectives
+
+Goal: Build a minimal working SQL database with basic storage and query support.
+
 - [x] Slotted Pages
 - [x] Disk Manager for DB File
 - [ ] Fully Implement B-Link Tree
