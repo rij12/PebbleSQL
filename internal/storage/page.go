@@ -28,6 +28,11 @@ type PageHeader struct {
 	RightSiblingPageID uint32 // 4 bytes (offset 16)
 }
 
+type RowPointer struct {
+	PageID     uint32 // Where the record lives
+	SlotNumber uint16 // Which slot in that page
+}
+
 type SlotEntry struct {
 	Key            uint64
 	ValueOffset    uint16
@@ -42,12 +47,16 @@ type OverflowPageHeader struct {
 	DataLength         uint16 // 2 bytes
 }
 
-type BLinkTreePage struct {
+type SlottedPage struct {
 	Buf []byte
 }
 
 type OverflowPage struct {
 	Buf []byte
+}
+
+func NewSlottedPage(buf []byte) *SlottedPage {
+	return &SlottedPage{}
 }
 
 func WriteHeader(buf []byte, header *PageHeader) {
@@ -134,7 +143,7 @@ func byteToBool(b byte) bool {
 	return b != 0
 }
 
-func (p *BLinkTreePage) InsertKeyValue(
+func (p *SlottedPage) InsertKeyValue(
 	key uint64,
 	value []byte,
 	allocateOverflowPage func() (*OverflowPage, uint32),
@@ -232,7 +241,7 @@ func (p *BLinkTreePage) InsertKeyValue(
 
 var ErrorKeyNotFound = errors.New("key not found")
 
-func (p *BLinkTreePage) FindKey(
+func (p *SlottedPage) FindKey(
 	key uint64,
 	loadOverflowPage func(pageID uint32) (*OverflowPage, error),
 ) ([]byte, error) {
@@ -309,7 +318,7 @@ func shiftSlots(buf []byte, insertPos int, numKeys uint16) {
 	copy(buf[dstOffset:dstOffset+moveSize], buf[srcOffset:srcOffset+moveSize])
 }
 
-func (p *BLinkTreePage) DeleteKey(key uint64) error {
+func (p *SlottedPage) DeleteKey(key uint64) error {
 	header := ReadHeader(p.Buf[:20])
 
 	low := 0

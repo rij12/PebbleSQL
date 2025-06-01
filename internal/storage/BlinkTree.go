@@ -1,4 +1,4 @@
-package blinktree
+package storage
 
 import (
 	"bytes"
@@ -11,28 +11,27 @@ import (
 
 const maxKeys = 4 // For simplicity, a small branching factor
 
-type Node struct {
-	isLeaf       bool
-	keys         []int
-	values       [][]byte         // Only for leaf nodes
-	children     []*BLinkTreePage // Only for internal nodes
-	parent       *BLinkTreePage   // For backtracking
-	rightSibling *Node
-	mu           sync.RWMutex
+type Node[K comparable] struct {
+	Key         []K
+	RowPointers []RowPointer
+	children    []*Node[K]
+	isLeaf      bool
 }
 
-type BlinkTree struct {
-	root *Node
-	mu   sync.RWMutex
+type BLinkTree[K comparable] struct {
+	root        *Node[K]
+	rootPageID  uint32
+	DiskManager DiskManager
+	mu          sync.RWMutex
 }
 
-func NewBlinkTree() *BlinkTree {
-	return &BlinkTree{
-		root: &Node{isLeaf: true},
+func NewBlinkTree() *BLinkTree {
+	return &BLinkTree{
+		root: &SlottedPage[]{isLeaf: true},
 	}
 }
 
-func (tree *BlinkTree) Search(key int) ([]byte, bool) {
+func (tree *BLinkTree) Search(key int) ([]byte, bool) {
 	n := tree.root
 	// Find the leaf node with the values
 	for {
@@ -66,11 +65,11 @@ func (tree *BlinkTree) Search(key int) ([]byte, bool) {
 	return nil, false
 }
 
-func (tree *BlinkTree) Insert(key int, value []byte) {
+func (tree *BLinkTree) Insert(key int, value []byte) {
 	tree.insert(tree.root, key, value)
 }
 
-func (tree *BlinkTree) insert(n *Node, key int, value []byte) {
+func (tree *BLinkTree) insert(n *Node, key int, value []byte) {
 	if n.isLeaf {
 		n.mu.Lock() // <-- NODE-LEVEL LOCK
 		idx := sort.SearchInts(n.keys, key)
@@ -94,11 +93,11 @@ func (tree *BlinkTree) insert(n *Node, key int, value []byte) {
 	tree.insert(child, key, value)
 }
 
-func (tree *BlinkTree) split(n *Node) {
+func (tree *BLinkTree) split(n *Node) {
 
 	// TODO - Need to give this more thought
 	if !n.mu.TryLock() {
-		log.Fatal("BlinkTree split called on node that is not locked")
+		log.Fatal("BLinkTree split called on node that is not locked")
 	}
 
 	mid := len(n.keys) / 2
@@ -147,13 +146,13 @@ func (tree *BlinkTree) split(n *Node) {
 	}
 }
 
-func (tree *BlinkTree) Delete(key int) {
+func (tree *BLinkTree) Delete(key int) {
 	tree.mu.Lock()
 	defer tree.mu.Unlock()
 	tree.delete(tree.root, key)
 }
 
-func (tree *BlinkTree) delete(n *Node, key int) {
+func (tree *BLinkTree) delete(n *Node, key int) {
 	if !n.isLeaf {
 		i := sort.Search(len(n.keys), func(i int) bool {
 			return key < n.keys[i]
@@ -174,7 +173,7 @@ func (tree *BlinkTree) delete(n *Node, key int) {
 	}
 }
 
-func (tree *BlinkTree) Print() {
+func (tree *BLinkTree) Print() {
 	var levels [][]*Node
 	q := []*Node{tree.root}
 

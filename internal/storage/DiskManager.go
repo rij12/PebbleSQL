@@ -8,10 +8,13 @@ import (
 )
 
 type DiskManager interface {
-	AllocatePage()
-	SavePage()
-	LoadPage()
-	Close()
+	AllocatePage() uint32
+	AllocatePageID() uint32
+	AllocateOverflowPage() (*OverflowPage, uint32)
+	LoadOverflowPage(pageID uint32) (*OverflowPage, error)
+	SavePage(pageID uint32, buf []byte) error
+	LoadPage(pageID uint32) ([]byte, error)
+	Close() error
 }
 
 type PebbleSQLDiskManager struct {
@@ -20,7 +23,7 @@ type PebbleSQLDiskManager struct {
 	nextPageID uint32
 }
 
-func NewDiskManager(filename string) (*PebbleSQLDiskManager, error) {
+func NewDiskManager(filename string) (DiskManager, error) {
 	file, err := os.OpenFile(filename, os.O_RDWR|os.O_CREATE, 0666)
 	if err != nil {
 		return nil, err
