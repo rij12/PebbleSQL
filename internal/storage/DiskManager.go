@@ -10,8 +10,6 @@ import (
 type DiskManager interface {
 	AllocatePage() uint32
 	AllocatePageID() uint32
-	AllocateOverflowPage() (*OverflowPage, uint32)
-	LoadOverflowPage(pageID uint32) (*OverflowPage, error)
 	SavePage(pageID uint32, buf []byte) error
 	LoadPage(pageID uint32) ([]byte, error)
 	Close() error
@@ -48,20 +46,6 @@ func (d *PebbleSQLDiskManager) AllocatePageID() uint32 {
 
 func (d *PebbleSQLDiskManager) AllocatePage() uint32 {
 	return d.AllocatePageID()
-}
-
-func (d *PebbleSQLDiskManager) AllocateOverflowPage() (*OverflowPage, uint32) {
-	pageID := d.AllocatePageID()
-	buf := make([]byte, PageSize)
-	return &OverflowPage{Buf: buf}, pageID
-}
-
-func (d *PebbleSQLDiskManager) LoadOverflowPage(pageID uint32) (*OverflowPage, error) {
-	buf, err := d.LoadPage(pageID)
-	if err != nil {
-		return nil, err
-	}
-	return &OverflowPage{Buf: buf}, nil
 }
 
 func (d *PebbleSQLDiskManager) SavePage(pageID uint32, buf []byte) error {
