@@ -11,6 +11,11 @@ import (
 
 const maxKeys = 4 // For simplicity, a small branching factor
 
+type RowPointer struct {
+	PageId uint16
+	SlotId uint16
+}
+
 type Node[K comparable] struct {
 	Key         []K
 	RowPointers []RowPointer
